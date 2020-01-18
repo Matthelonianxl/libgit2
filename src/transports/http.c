@@ -16,7 +16,7 @@
 #include "netops.h"
 #include "global.h"
 #include "remote.h"
-#include "git2/sys/cred.h"
+#include "git2/sys/credential.h"
 #include "smart.h"
 #include "auth.h"
 #include "http.h"
@@ -26,9 +26,9 @@
 #include "streams/socket.h"
 
 git_http_auth_scheme auth_schemes[] = {
-	{ GIT_AUTHTYPE_NEGOTIATE, "Negotiate", GIT_CREDTYPE_DEFAULT, git_http_auth_negotiate },
-	{ GIT_AUTHTYPE_NTLM, "NTLM", GIT_CREDTYPE_USERPASS_PLAINTEXT, git_http_auth_ntlm },
-	{ GIT_AUTHTYPE_BASIC, "Basic", GIT_CREDTYPE_USERPASS_PLAINTEXT, git_http_auth_basic },
+	{ GIT_AUTHTYPE_NEGOTIATE, "Negotiate", GIT_CREDENTIAL_DEFAULT, git_http_auth_negotiate },
+	{ GIT_AUTHTYPE_NTLM, "NTLM", GIT_CREDENTIAL_USERPASS_PLAINTEXT, git_http_auth_ntlm },
+	{ GIT_AUTHTYPE_BASIC, "Basic", GIT_CREDENTIAL_USERPASS_PLAINTEXT, git_http_auth_basic },
 };
 
 static const char *upload_pack_service = "upload-pack";
@@ -79,9 +79,9 @@ typedef struct {
 	git_stream *stream;
 
 	git_http_authtype_t authtypes;
-	git_credtype_t credtypes;
+	git_credential_t credtypes;
 
-	git_cred *cred;
+	git_credential *cred;
 	unsigned url_cred_presented : 1,
 	    authenticated : 1;
 
@@ -132,14 +132,14 @@ typedef struct {
 
 static git_http_auth_scheme *scheme_for_challenge(
 	const char *challenge,
-	git_cred *cred)
+	git_credential *cred)
 {
 	git_http_auth_scheme *scheme = NULL;
 	size_t i;
 
 	for (i = 0; i < ARRAY_SIZE(auth_schemes); i++) {
 		const char *scheme_name = auth_schemes[i].name;
-		const git_credtype_t scheme_types = auth_schemes[i].credtypes;
+		const git_credential_t scheme_types = auth_schemes[i].credtypes;
 		size_t scheme_len;
 
 		scheme_len = strlen(scheme_name);
@@ -412,25 +412,25 @@ static int on_header_value(http_parser *parser, const char *str, size_t len)
 	return 0;
 }
 
-GIT_INLINE(void) free_cred(git_cred **cred)
+GIT_INLINE(void) free_cred(git_credential **cred)
 {
 	if (*cred) {
-		git_cred_free(*cred);
+		git_credential_free(*cred);
 		(*cred) = NULL;
 	}
 }
 
 static int apply_url_credentials(
-	git_cred **cred,
+	git_credential **cred,
 	unsigned int allowed_types,
 	const char *username,
 	const char *password)
 {
-	if (allowed_types & GIT_CREDTYPE_USERPASS_PLAINTEXT)
-		return git_cred_userpass_plaintext_new(cred, username, password);
+	if (allowed_types & GIT_CREDENTIAL_USERPASS_PLAINTEXT)
+		return git_credential_userpass_plaintext_new(cred, username, password);
 
-	if ((allowed_types & GIT_CREDTYPE_DEFAULT) && *username == '\0' && *password == '\0')
-		return git_cred_default_new(cred);
+	if ((allowed_types & GIT_CREDENTIAL_DEFAULT) && *username == '\0' && *password == '\0')
+		return git_credential_default_new(cred);
 
 	return GIT_PASSTHROUGH;
 }
@@ -474,7 +474,7 @@ static int on_auth_required(
 	http_server *server,
 	const char *url,
 	const char *type,
-	git_cred_acquire_cb callback,
+	git_credential_acquire_cb callback,
 	void *callback_payload)
 {
 	parser_context *ctx = (parser_context *) parser->data;
